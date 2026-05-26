@@ -1,0 +1,33 @@
+# LifeSteal Plugin Configuration
+
+# Worlds where LifeSteal mechanics are enabled
+# If empty or missing, LifeSteal works in all worlds
+enabled-worlds:
+  - new_world
+  - resource_world
+
+# The name and format of the heart item
+heart-item-name: "&c&lHeart"
+
+# Maximum and minimum health values (in whole hearts)
+max-health: 10
+min-health: 1
+
+# Anti-alt protection settings
+anti-alt:
+  enabled: true
+  same-victim-cooldown-hours: 12
+  minimum-playtime-hours: 3
+
+# Configurable messages (supports & color codes and MiniMessage)
+messages:
+  disabled-world: "&cLifeSteal is disabled in this world!"
+  creative-disabled: "&cYou cannot use this command in creative mode!"
+  no_hearts: "<red>You don't have enough hearts!"
+  success_withdraw: "<green>Successfully withdrew a heart!"
+  success_redeem: "<green>You redeemed %amount% hearts!"
+  reset_success: "<green>%player%'s hearts have been reset!"
+  cooldown-active: "&cYou already stole a heart from this player recently!"
+  minimum-playtime: "&cThis player does not meet the minimum playtime requirement!"
+  reload-success: "&aLifeSteal configuration reloaded!"
+  no-permission: "&cYou do not have permission!"
