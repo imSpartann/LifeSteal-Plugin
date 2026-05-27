@@ -8,10 +8,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.fliff.lifeSteal.commands.CheckHeartCommand;
+import org.fliff.lifeSteal.commands.GiveHeartCommand;
 import org.fliff.lifeSteal.commands.ResetHeartsCommand;
 import org.fliff.lifeSteal.commands.WithdrawHeartCommand;
 import org.fliff.lifeSteal.listeners.PlayerDeathListener;
 import org.fliff.lifeSteal.listeners.RightClickListener;
+import org.fliff.lifeSteal.listeners.InventoryProtectionListener;
+import org.fliff.lifeSteal.utils.AuditLogger;
 import org.fliff.lifeSteal.utils.ConfigManager;
 
 import java.io.File;
@@ -26,10 +30,14 @@ public final class LifeSteal extends JavaPlugin {
     private static LifeSteal instance;
 
     private final Map<String, Long> antiAltCooldowns = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> issuedHeartUUIDs = new ConcurrentHashMap<>();
 
     private File cooldownFile;
     private FileConfiguration cooldownConfig;
+    private File heartsFile;
+    private FileConfiguration heartsConfig;
     private ConfigManager configManager;
+    private AuditLogger auditLogger;
 
     public static LifeSteal getInstance() {
         return instance;
@@ -58,34 +66,78 @@ public final class LifeSteal extends JavaPlugin {
         }
         cooldownConfig = YamlConfiguration.loadConfiguration(cooldownFile);
 
+        // Initialize hearts.yml
+        heartsFile = new File(getDataFolder(), "hearts.yml");
+        if (!heartsFile.exists()) {
+            try {
+                heartsFile.createNewFile();
+            } catch (IOException e) {
+                getLogger().severe("Failed to create hearts.yml: " + e.getMessage());
+            }
+        }
+        heartsConfig = YamlConfiguration.loadConfiguration(heartsFile);
+
         // Load persistent cooldowns
         loadCooldowns();
-        cleanupExpiredCooldowns(configManager.getSameVictimCooldownHours());
+        cleanupExpiredCooldowns(configManager.getSameVictimCooldownMinutes());
+        loadIssuedHearts();
+
+        // Initialize Audit Logger
+        auditLogger = new AuditLogger(this);
 
         // Register Commands
         getCommand("resethearts").setExecutor(new ResetHeartsCommand());
         getCommand("withdrawheart").setExecutor(new WithdrawHeartCommand());
-        getCommand("lifestealreload").setExecutor((sender, cmd, label, args) -> {
-            if (!sender.hasPermission("lifesteal.reload")) {
-                sender.sendMessage(new ConfigManager().getMessage("no-permission"));
+        getCommand("giveheart").setExecutor(new GiveHeartCommand());
+        getCommand("lifesteal").setExecutor((sender, cmd, label, args) -> {
+            if (args.length < 1) {
+                sender.sendMessage(configManager.formatMessage("&cUsage: /lifesteal <check|reload>"));
                 return true;
             }
-            reloadPlugin();
-            sender.sendMessage(new ConfigManager().getMessage("reload-success"));
-            return true;
+
+            String subcommand = args[0].toLowerCase();
+
+            switch (subcommand) {
+                case "check":
+                    if (!sender.hasPermission("lifesteal.check")) {
+                        sender.sendMessage(new ConfigManager().getMessage("no-permission"));
+                        return true;
+                    }
+                    // Forward to CheckHeartCommand logic
+                    CheckHeartCommand checkCmd = new CheckHeartCommand();
+                    return checkCmd.onCommand(sender, cmd, label,
+                            args.length > 1 ? new String[] { args[1] } : new String[] {});
+
+                case "reload":
+                    if (!sender.hasPermission("lifesteal.reload")) {
+                        sender.sendMessage(new ConfigManager().getMessage("no-permission"));
+                        return true;
+                    }
+                    reloadPlugin();
+                    logReload();
+                    sender.sendMessage(new ConfigManager().getMessage("reload-success"));
+                    return true;
+
+                default:
+                    sender.sendMessage(configManager.formatMessage("&cUnknown subcommand: " + args[0]));
+                    sender.sendMessage(configManager.formatMessage("&cUsage: /lifesteal <check|reload>"));
+                    return true;
+            }
         });
 
         // Register Listeners
         Bukkit.getPluginManager().registerEvents(new PlayerDeathListener(), this);
         Bukkit.getPluginManager().registerEvents(new RightClickListener(), this);
+        Bukkit.getPluginManager().registerEvents(new InventoryProtectionListener(), this);
 
         getLogger().info("LifeSteal Plugin has been enabled!");
     }
 
     @Override
     public void onDisable() {
-        // Save cooldowns on disable
+        // Save cooldowns and hearts on disable
         saveCooldowns();
+        saveIssuedHearts();
         getLogger().info("LifeSteal Plugin has been disabled!");
     }
 
@@ -94,7 +146,7 @@ public final class LifeSteal extends JavaPlugin {
             return;
 
         if (configManager != null) {
-            cleanupExpiredCooldowns(configManager.getSameVictimCooldownHours());
+            cleanupExpiredCooldowns(configManager.getSameVictimCooldownMinutes());
         }
 
         cooldownConfig.set("cooldowns", null);
@@ -129,12 +181,12 @@ public final class LifeSteal extends JavaPlugin {
         getLogger().info("Loaded " + antiAltCooldowns.size() + " cooldown entries.");
     }
 
-    public void cleanupExpiredCooldowns(int cooldownHours) {
+    public void cleanupExpiredCooldowns(int cooldownMinutes) {
         if (antiAltCooldowns.isEmpty()) {
             return;
         }
 
-        long cooldownMillis = (long) cooldownHours * 60L * 60L * 1000L;
+        long cooldownMillis = (long) cooldownMinutes * 60L * 1000L;
         long currentTime = System.currentTimeMillis();
         int removedCount = 0;
 
@@ -162,7 +214,16 @@ public final class LifeSteal extends JavaPlugin {
         // Reload cooldowns.yml
         cooldownConfig = YamlConfiguration.loadConfiguration(cooldownFile);
         loadCooldowns();
-        cleanupExpiredCooldowns(configManager.getSameVictimCooldownHours());
+        cleanupExpiredCooldowns(configManager.getSameVictimCooldownMinutes());
+
+        // Reload hearts.yml
+        heartsConfig = YamlConfiguration.loadConfiguration(heartsFile);
+        loadIssuedHearts();
+
+        // Reload audit logger
+        if (auditLogger != null) {
+            auditLogger.reload();
+        }
 
         getLogger().info("LifeSteal configuration reloaded!");
     }
@@ -173,12 +234,12 @@ public final class LifeSteal extends JavaPlugin {
         saveCooldowns();
     }
 
-    public boolean isCooldownActive(String killerUUID, String victimUUID, int cooldownHours) {
+    public boolean isCooldownActive(String killerUUID, String victimUUID, int cooldownMinutes) {
         String key = killerUUID + "_" + victimUUID;
         Long lastStealTime = antiAltCooldowns.get(key);
         if (lastStealTime != null) {
             long now = System.currentTimeMillis();
-            long cooldownMillis = (long) cooldownHours * 60L * 60L * 1000L;
+            long cooldownMillis = (long) cooldownMinutes * 60L * 1000L;
             return (now - lastStealTime) < cooldownMillis;
         }
         return false;
@@ -187,5 +248,102 @@ public final class LifeSteal extends JavaPlugin {
     public void removeCooldown(String killerUUID, String victimUUID) {
         String key = killerUUID + "_" + victimUUID;
         antiAltCooldowns.remove(key);
+    }
+
+    // ========================
+    // Hearts.yml Persistence
+    // ========================
+
+    public void saveIssuedHearts() {
+        if (heartsConfig == null)
+            return;
+
+        heartsConfig.set("issued-hearts", null);
+        Map<String, Boolean> heartUUIDs = getIssuedHeartUUIDs();
+        if (heartUUIDs != null && !heartUUIDs.isEmpty()) {
+            for (Map.Entry<String, Boolean> entry : heartUUIDs.entrySet()) {
+                heartsConfig.set("issued-hearts." + entry.getKey(), entry.getValue());
+            }
+        }
+
+        try {
+            heartsConfig.save(heartsFile);
+        } catch (IOException e) {
+            getLogger().severe("Failed to save hearts.yml: " + e.getMessage());
+        }
+    }
+
+    public void loadIssuedHearts() {
+        if (heartsConfig == null)
+            return;
+
+        issuedHeartUUIDs.clear();
+        try {
+            if (heartsConfig.contains("issued-hearts")) {
+                for (String key : heartsConfig.getConfigurationSection("issued-hearts").getKeys(false)) {
+                    issuedHeartUUIDs.put(key, true);
+                }
+            }
+        } catch (Exception e) {
+            getLogger().severe("Failed to load hearts.yml, starting fresh: " + e.getMessage());
+            heartsConfig = YamlConfiguration.loadConfiguration(heartsFile);
+        }
+
+        getLogger().info("Loaded " + issuedHeartUUIDs.size() + " issued heart entries.");
+    }
+
+    public void addIssuedHeartUUID(String heartUUID) {
+        issuedHeartUUIDs.put(heartUUID, true);
+        saveIssuedHeartsToConfig(heartUUID, true);
+    }
+
+    public boolean removeIssuedHeartUUID(String heartUUID) {
+        boolean removed = issuedHeartUUIDs.remove(heartUUID) != null;
+        if (removed) {
+            saveIssuedHeartsToConfig(heartUUID, false);
+        }
+        return removed;
+    }
+
+    /**
+     * Save a single heart UUID change to hearts.yml immediately.
+     * Adds or removes the UUID from the issued-hearts section.
+     */
+    private void saveIssuedHeartsToConfig(String heartUUID, boolean present) {
+        if (heartsConfig == null)
+            return;
+        if (present) {
+            heartsConfig.set("issued-hearts." + heartUUID, true);
+        } else {
+            heartsConfig.set("issued-hearts." + heartUUID, null);
+        }
+        try {
+            heartsConfig.save(heartsFile);
+        } catch (IOException e) {
+            getLogger().severe("Failed to save hearts.yml for UUID " + heartUUID + ": " + e.getMessage());
+        }
+    }
+
+    public boolean isHeartUUIDValid(String heartUUID) {
+        return issuedHeartUUIDs.containsKey(heartUUID);
+    }
+
+    public Map<String, Boolean> getIssuedHeartUUIDs() {
+        return issuedHeartUUIDs;
+    }
+
+    @Override
+    public void reloadConfig() {
+        super.reloadConfig();
+    }
+
+    public AuditLogger getAuditLogger() {
+        return auditLogger;
+    }
+
+    public void logReload() {
+        if (auditLogger != null) {
+            auditLogger.log("RELOAD");
+        }
     }
 }

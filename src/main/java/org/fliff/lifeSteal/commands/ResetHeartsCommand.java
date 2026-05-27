@@ -1,6 +1,8 @@
 package org.fliff.lifeSteal.commands;
 
 import org.bukkit.Bukkit;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -29,9 +31,12 @@ public class ResetHeartsCommand implements CommandExecutor {
             return true;
         }
 
-        target.setMaxHealth(20);
-        if (target.getHealth() > 20) {
-            target.setHealth(20);
+        AttributeInstance attribute = target.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        if (attribute != null) {
+            attribute.setBaseValue(20);
+            if (target.getHealth() > 20) {
+                target.setHealth(20);
+            }
         }
         sender.sendMessage(configManager.formatMessage("&aSuccessfully reset " + target.getName() + "'s hearts."));
         return true;

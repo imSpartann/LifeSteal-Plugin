@@ -12,7 +12,11 @@ commands:
     description: Withdraws hearts into items.
     usage: /withdrawheart <amount>
     permission: lifesteal.withdraw
-  lifestealreload:
-    description: Reloads the LifeSteal plugin
-    usage: /lifestealreload
-    permission: lifesteal.reload
+  giveheart:
+    description: Give secure heart items
+    usage: /giveheart <player> <amount>
+    permission: lifesteal.giveheart
+  lifesteal:
+    description: Main LifeSteal command (subcommands: check, reload)
+    usage: /lifesteal <check|reload>
+    permission: lifesteal.main

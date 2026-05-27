@@ -3,21 +3,58 @@
 # Worlds where LifeSteal mechanics are enabled
 # If empty or missing, LifeSteal works in all worlds
 enabled-worlds:
-  - new_world
   - resource_world
+ # - new_world
 
-# The name and format of the heart item
-heart-item-name: "&c&lHeart"
+# Heart item appearance configuration
+heart-item:
+  material: NETHER_STAR
+  name: "&c&lHeart"
+  lore:
+    - "&7Server-issued heart"
+    - "&7Right-click to redeem"
+    - "&8Unstackable"
 
 # Maximum and minimum health values (in whole hearts)
-max-health: 10
+max-health: 60
 min-health: 1
 
 # Anti-alt protection settings
 anti-alt:
   enabled: true
-  same-victim-cooldown-hours: 12
-  minimum-playtime-hours: 3
+  same-victim-cooldown-minutes: 1
+  minimum-playtime-minutes: 1440
+
+# Withdraw heart restrictions (anti-alt protection)
+# Player must meet these requirements before using /withdrawheart
+withdraw:
+  minimum-playtime-minutes: 1440
+  minimum-max-health: 22
+
+# Minimum health death action
+# Triggered when a player at minimum allowed health dies again
+# Available actions:
+# BAN       - Permanently bans the player
+# SPECTATOR - Sets the player to spectator mode
+# RESET     - Resets player back to default health
+# NONE      - Do nothing special
+minimum-health-action:
+  enabled: true
+  action: BAN
+
+# Prevent heart items from dropping on player death
+# When enabled, heart items are removed from death drops to prevent duplication
+prevent-heart-drops: true
+
+# Debug logging control
+# When enabled, detailed debug logs are written to console
+debug:
+  enabled: false
+
+# Audit logging for heart economy actions
+# Logs are stored in plugins/LifeSteal/logs/ directory
+audit-logging:
+  enabled: true
 
 # Configurable messages (supports & color codes and MiniMessage)
 messages:
@@ -31,3 +68,8 @@ messages:
   minimum-playtime: "&cThis player does not meet the minimum playtime requirement!"
   reload-success: "&aLifeSteal configuration reloaded!"
   no-permission: "&cYou do not have permission!"
+  withdraw-playtime-required: "&cYou need more playtime before withdrawing hearts!"
+  withdraw-min-health-required: "&cYou need at least {health} max health before withdrawing hearts!"
+  min-health-action-ban: "&cYou ran out of hearts!"
+  min-health-action-spectator: "&cYou ran out of hearts! You have been spectating."
+  min-health-action-reset: "&cYou ran out of hearts! Your health has been reset."
