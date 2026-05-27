@@ -1,5 +1,5 @@
 name: LifeSteal
-version: '1'
+version: '4.0.0'
 main: org.fliff.lifeSteal.LifeSteal
 api-version: '1.21'
 authors: [ Fluffy ]
@@ -17,6 +17,6 @@ commands:
     usage: /giveheart <player> <amount>
     permission: lifesteal.giveheart
   lifesteal:
-    description: Main LifeSteal command (subcommands: check, reload)
+    description: Main LifeSteal command
     usage: /lifesteal <check|reload>
     permission: lifesteal.main
