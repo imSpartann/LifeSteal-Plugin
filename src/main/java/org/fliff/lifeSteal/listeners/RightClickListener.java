@@ -1,6 +1,7 @@
 package org.fliff.lifeSteal.listeners;
 
 import org.bukkit.Material;
+import org.bukkit.Statistic;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Player;
@@ -195,5 +196,23 @@ public class RightClickListener implements Listener {
 
         player.sendMessage(configManager.formatMessage(
                 "&aYou successfully redeemed " + finalAmount + " heart(s)!"));
+
+        // Cache player data after heart redemption
+        cachePlayerData(player);
+    }
+
+    private void cachePlayerData(Player player) {
+        org.fliff.lifeSteal.utils.PlayerDataManager pDataMgr = org.fliff.lifeSteal.utils.PlayerDataManager
+                .getInstance();
+        AttributeInstance playerAttr = player.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        if (playerAttr != null) {
+            long playtime = player.getStatistic(Statistic.PLAY_ONE_MINUTE) / 20L / 60L;
+            pDataMgr.cachePlayerData(
+                    player.getUniqueId(),
+                    player.getName(),
+                    playerAttr.getBaseValue(),
+                    player.getHealth(),
+                    playtime);
+        }
     }
 }

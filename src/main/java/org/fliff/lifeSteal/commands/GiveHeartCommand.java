@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.UUID;
 
 public class GiveHeartCommand implements CommandExecutor, TabCompleter {
@@ -185,9 +186,9 @@ public class GiveHeartCommand implements CommandExecutor, TabCompleter {
         // Only show tab completion for the first argument (player names)
         if (args.length == 1) {
             List<String> suggestions = new ArrayList<>();
-            String partialName = args[0].toLowerCase();
+            String partialName = args[0].toLowerCase(Locale.ROOT);
             for (Player p : Bukkit.getOnlinePlayers()) {
-                if (p.getName().toLowerCase().contains(partialName)) {
+                if (p.getName().toLowerCase(Locale.ROOT).contains(partialName)) {
                     suggestions.add(p.getName());
                 }
             }

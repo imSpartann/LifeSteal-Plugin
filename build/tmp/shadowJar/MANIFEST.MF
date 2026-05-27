@@ -1,5 +1,5 @@
 Manifest-Version: 1.0
 Implementation-Title: LifeSteal
-Implementation-Version: 4.0.0-SNAPSHOT
+Implementation-Version: 4.0.0
 Main-Class: org.fliff.lifeSteal.LifeSteal
 

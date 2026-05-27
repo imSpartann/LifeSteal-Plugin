@@ -1,6 +1,7 @@
 package org.fliff.lifeSteal.commands;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Statistic;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.command.Command;
@@ -39,6 +40,25 @@ public class ResetHeartsCommand implements CommandExecutor {
             }
         }
         sender.sendMessage(configManager.formatMessage("&aSuccessfully reset " + target.getName() + "'s hearts."));
+
+        // Cache player data after reset
+        cachePlayerData(target);
+
         return true;
+    }
+
+    private void cachePlayerData(Player player) {
+        org.fliff.lifeSteal.utils.PlayerDataManager pDataMgr = org.fliff.lifeSteal.utils.PlayerDataManager
+                .getInstance();
+        AttributeInstance playerAttr = player.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        if (playerAttr != null) {
+            long playtime = player.getStatistic(Statistic.PLAY_ONE_MINUTE) / 20L / 60L;
+            pDataMgr.cachePlayerData(
+                    player.getUniqueId(),
+                    player.getName(),
+                    playerAttr.getBaseValue(),
+                    player.getHealth(),
+                    playtime);
+        }
     }
 }

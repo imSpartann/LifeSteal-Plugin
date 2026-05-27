@@ -82,6 +82,9 @@ public class PlayerDeathListener implements Listener {
             recordSteal(killer, victim);
         }
 
+        // Cache victim and killer data after heart steal
+        cachePlayerDataAfterDeath(victim, killer);
+
         // Prevent heart item drops on death
         if (configManager.getConfig().getBoolean("prevent-heart-drops", true)) {
             preventHeartDrops(event, victim);
@@ -171,6 +174,35 @@ public class PlayerDeathListener implements Listener {
         if (removedCount > 0) {
             LifeSteal.getInstance().getLogger()
                     .info(victim.getName() + "'s heart items were removed from death drops.");
+        }
+    }
+
+    private void cachePlayerDataAfterDeath(Player victim, Player killer) {
+        org.fliff.lifeSteal.utils.PlayerDataManager pDataMgr = org.fliff.lifeSteal.utils.PlayerDataManager
+                .getInstance();
+
+        // Cache victim data (they lost health)
+        AttributeInstance victimAttr = victim.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        if (victimAttr != null) {
+            long victimPlaytime = victim.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE) / 20L / 60L;
+            pDataMgr.cachePlayerData(
+                    victim.getUniqueId(),
+                    victim.getName(),
+                    victimAttr.getBaseValue(),
+                    victim.getHealth(),
+                    victimPlaytime);
+        }
+
+        // Cache killer data (they gained health)
+        AttributeInstance killerAttr = killer.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        if (killerAttr != null) {
+            long killerPlaytime = killer.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE) / 20L / 60L;
+            pDataMgr.cachePlayerData(
+                    killer.getUniqueId(),
+                    killer.getName(),
+                    killerAttr.getBaseValue(),
+                    killer.getHealth(),
+                    killerPlaytime);
         }
     }
 }

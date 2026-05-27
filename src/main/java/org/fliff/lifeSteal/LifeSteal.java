@@ -15,12 +15,17 @@ import org.fliff.lifeSteal.commands.WithdrawHeartCommand;
 import org.fliff.lifeSteal.listeners.PlayerDeathListener;
 import org.fliff.lifeSteal.listeners.RightClickListener;
 import org.fliff.lifeSteal.listeners.InventoryProtectionListener;
+import org.fliff.lifeSteal.listeners.PlayerJoinListener;
 import org.fliff.lifeSteal.utils.AuditLogger;
 import org.fliff.lifeSteal.utils.ConfigManager;
+import org.fliff.lifeSteal.utils.PlayerDataManager;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,6 +43,7 @@ public final class LifeSteal extends JavaPlugin {
     private FileConfiguration heartsConfig;
     private ConfigManager configManager;
     private AuditLogger auditLogger;
+    private PlayerDataManager playerDataManager;
 
     public static LifeSteal getInstance() {
         return instance;
@@ -85,6 +91,10 @@ public final class LifeSteal extends JavaPlugin {
         // Initialize Audit Logger
         auditLogger = new AuditLogger(this);
 
+        // Initialize Player Data Manager
+        playerDataManager = new PlayerDataManager();
+        playerDataManager.init();
+
         // Register Commands
         getCommand("resethearts").setExecutor(new ResetHeartsCommand());
         getCommand("withdrawheart").setExecutor(new WithdrawHeartCommand());
@@ -124,20 +134,58 @@ public final class LifeSteal extends JavaPlugin {
                     return true;
             }
         });
+        getCommand("lifesteal").setTabCompleter(new org.bukkit.command.TabCompleter() {
+            @Override
+            public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+                List<String> suggestions = new ArrayList<>();
+
+                if (args.length == 1) {
+                    // First argument: suggest subcommands
+                    String partial = args[0].toLowerCase(Locale.ROOT);
+                    if (sender.hasPermission("lifesteal.check") && "check".startsWith(partial)) {
+                        suggestions.add("check");
+                    }
+                    if (sender.hasPermission("lifesteal.reload") && "reload".startsWith(partial)) {
+                        suggestions.add("reload");
+                    }
+                } else if (args.length == 2 && "check".equals(args[0].toLowerCase(Locale.ROOT))) {
+                    // Second argument: suggest online player names + cached offline players
+                    String partial = args[1].toLowerCase(Locale.ROOT);
+                    for (Player player : Bukkit.getOnlinePlayers()) {
+                        if (player.getName().toLowerCase(Locale.ROOT).startsWith(partial)) {
+                            suggestions.add(player.getName());
+                        }
+                    }
+                    // Add cached offline players from playerdata.yml
+                    for (String cachedName : playerDataManager.getCachedPlayerNames()) {
+                        if (!suggestions.contains(cachedName)
+                                && cachedName.toLowerCase(Locale.ROOT).startsWith(partial)) {
+                            suggestions.add(cachedName);
+                        }
+                    }
+                }
+
+                return suggestions;
+            }
+        });
 
         // Register Listeners
         Bukkit.getPluginManager().registerEvents(new PlayerDeathListener(), this);
         Bukkit.getPluginManager().registerEvents(new RightClickListener(), this);
         Bukkit.getPluginManager().registerEvents(new InventoryProtectionListener(), this);
+        Bukkit.getPluginManager().registerEvents(new PlayerJoinListener(), this);
 
         getLogger().info("LifeSteal Plugin has been enabled!");
     }
 
     @Override
     public void onDisable() {
-        // Save cooldowns and hearts on disable
+        // Save cooldowns, hearts, and player data on disable
         saveCooldowns();
         saveIssuedHearts();
+        if (playerDataManager != null) {
+            playerDataManager.save();
+        }
         getLogger().info("LifeSteal Plugin has been disabled!");
     }
 
@@ -219,6 +267,11 @@ public final class LifeSteal extends JavaPlugin {
         // Reload hearts.yml
         heartsConfig = YamlConfiguration.loadConfiguration(heartsFile);
         loadIssuedHearts();
+
+        // Reload player data
+        if (playerDataManager != null) {
+            playerDataManager.reload();
+        }
 
         // Reload audit logger
         if (auditLogger != null) {
