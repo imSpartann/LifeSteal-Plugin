@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "org.fliff"
-version = "4.1.0"
+version = "4.1.1"
 description = "LifeSteal"
 
 java {

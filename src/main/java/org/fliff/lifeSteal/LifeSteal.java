@@ -92,7 +92,7 @@ public final class LifeSteal extends JavaPlugin {
         auditLogger = new AuditLogger(this);
 
         // Initialize Player Data Manager
-        playerDataManager = new PlayerDataManager();
+        playerDataManager = PlayerDataManager.getInstance();
         playerDataManager.init();
 
         // Register Commands
